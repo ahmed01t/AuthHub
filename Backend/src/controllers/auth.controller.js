@@ -2,10 +2,13 @@ import asyncHandler from "../utils/asynchandler";
 import User from "../models/user.model";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import crypto, { createHash } from "crypto";
 import ApiError from "../utils/ApiError";
 import ApiResponse from "../utils/ApiResponse";
 
+const createHash = (value) => { 
+    crypto.createHash("sha256").update(value).digest("hex");
+}
 const generateAccessAndRefreshTokens = async (userId) => {
     const user= await User.findById(userId);
     if(!user){
@@ -50,6 +53,12 @@ const sendVerificationEmail = async ({email,fullname,token}) => {
     </div>
   `;
 
+  await sendEmail({
+    to: email,
+    subject: "Verify your AuthHub account",
+    html: html,
+  });
+
 }    
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -57,29 +66,62 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!fullname || !email || !username || !password) {
         throw new ApiError(400, "All fields are required");
     }
+const normalizedEmail = email.toLowerCase().trim();
+const normalizedUsername = username.toLowerCase().trim();
+
 
     const existingUser = await User.findOne({
-        $or: [{ email }, { username }]
+        $or: [{ email: normalizedEmail }, { username: normalizedUsername }]
     });
+
 
     if (existingUser) {
         throw new ApiError(409, "User with email or username already exists");
     }
-    const verif
+// Generate a verification token for email verification
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const hashedVerificationToken = createHash(verificationToken);
+
+    
     const user = await User.create({
-        fullname,
-        email,
-        username,
-        password
+        fullname: fullname.trim(),
+        email: normalizedEmail,
+        username: normalizedUsername,
+        password,
+        isemailverified: false,
+        emailverificationtoken: hashedVerificationToken,
+        // new Date means the current date and time, and adding 3600000 milliseconds (1 hour) sets the expiration time for the email verification token to be 1 hour from the moment of user registration. This means that the user has 1 hour to verify their email before the token expires.
+        emailverificationtokenexpires: new Date(Date.now() + 3600000), // 1 hour from now
     });
+    await sendVerificationEmail({ email: user.email, fullname: user.fullname, token: verificationToken });
 
-    const createdUser = await User.findById(user._id).select("-password -refreshToken");
+return res.status(201).json(new ApiResponse(201, "User registered successfully. Please check your email to verify your account.", { userId: user._id }));
+})
 
-    if (!createdUser) {
-        throw new ApiError(500, "Something went wrong while registering the user");
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { email, token } = req.body;
+    if(!email || !token){
+        throw new ApiError(400,"Email and token are required");
     }
 
-    return res.status(201).json(
-        new ApiResponse(201, createdUser, "User registered successfully")
-    );
-});
+    const normalizedEmail = email.toLowerCase().trim();
+    const hashedToken = createHash(token);
+
+    const user= await User.findOne({
+        email: normalizedEmail,
+        emailverificationtoken: hashedToken,
+        emailverificationtokenexpires: { $gt: new Date() } // Check if token is not expired
+    });
+    if(!user){
+        throw new ApiError(400,"Invalid or expired token");
+    }
+
+    user.isemailverified = true;
+    user.emailverificationtoken = undefined;
+    user.emailverificationtokenexpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    const tokens = await generateAccessAndRefreshTokens(user._id);
+    return res.status(200).json(new ApiResponse(200,"Email verified successfully", { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }));
+
+})
