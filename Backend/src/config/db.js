@@ -1,4 +1,3 @@
-import React from "react";
 import mongoose from "mongoose";
 import express from "express";
 // creating a database connection function
