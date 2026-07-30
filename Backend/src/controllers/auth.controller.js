@@ -273,3 +273,51 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         );
 
 })
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email: normalizedEmail });
+
+  // Security best practice: do not reveal whether the email exists.
+  if (!user) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {},
+          "If the account exists, a password reset email has been sent"
+        )
+      );
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenHash = createHash(resetToken);
+
+  user.passwordResetToken = resetTokenHash;
+  user.passwordResetExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await user.save({ validateBeforeSave: false });
+
+  await sendResetPasswordMail({
+    email: user.email,
+    fullName: user.fullName,
+    token: resetToken,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        {},
+        "If the account exists, a password reset email has been sent"
+      )
+    );
+});
