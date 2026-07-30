@@ -61,7 +61,7 @@ const sendVerificationEmail = async ({email,fullname,token}) => {
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6;">
       <h2>Verify your AuthHub account</h2>
-      <p>Hi ${fullName},</p>
+      <p>Hi ${fullname},</p>
       <p>Click the button below to verify your email address.</p>
       <p>
         <a href="${verifyUrl}"
@@ -274,6 +274,35 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+const sendResetPasswordMail = async ({ email, fullname, token }) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?email=${encodeURIComponent(
+    email
+  )}&token=${encodeURIComponent(token)}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+      <h2>Reset your AuthHub password</h2>
+      <p>Hi ${fullname},</p>
+      <p>Click the button below to reset your password.</p>
+      <p>
+        <a href="${resetUrl}"
+           style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;">
+          Reset Password
+        </a>
+      </p>
+      <p>If the button does not work, use this link:</p>
+      <p>${resetUrl}</p>
+      <p>This link will expire soon for security reasons.</p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: "Reset your AuthHub password",
+    html,
+  });
+};
+
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
@@ -307,7 +336,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   await sendResetPasswordMail({
     email: user.email,
-    fullName: user.fullName,
+    fullname: user.fullname,
     token: resetToken,
   });
 
@@ -321,3 +350,140 @@ const forgotPassword = asyncHandler(async (req, res) => {
       )
     );
 });
+
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, token, newPassword } = req.body;
+
+  if (!email || !token || !newPassword) {
+    throw new ApiError(400, "Email, token and new password are required");
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const tokenHash = createHash(token);
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+    passwordResetToken: tokenHash,
+    passwordResetExpiresAt: { $gt: new Date() },
+  }).select("+password +refreshToken");
+
+  if (!user) {
+    throw new ApiError(400, "Invalid or expired reset token");
+  }
+
+  user.password = newPassword;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpiresAt = undefined;
+  user.refreshToken = undefined;
+
+  await user.save();
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .json(new ApiResponse(200, {}, "Password reset successful"));
+});
+
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, getPublicUser(user), "Current user fetched"));
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullname, username } = req.body;
+
+  if (!fullname && !username) {
+    throw new ApiError(400, "Nothing to update");
+  }
+
+  const user = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (fullname) {
+    user.fullname = fullname.trim();
+  }
+
+  if (username) {
+    const normalizedUsername = username.toLowerCase().trim();
+
+    const duplicateUsername = await User.findOne({
+      username: normalizedUsername,
+      _id: { $ne: user._id },
+    });
+
+    if (duplicateUsername) {
+      throw new ApiError(409, "Username already taken");
+    }
+
+    user.username = normalizedUsername;
+  }
+
+  await user.save();
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, getPublicUser(user), "Account updated successfully")
+    );
+});
+ 
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(400, "Current password and new password are required");
+  }
+
+  const user = await User.findById(req.user?._id).select(
+    "+password +refreshToken"
+  );
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Current password is incorrect");
+  }
+
+  user.password = newPassword;
+  user.refreshToken = undefined;
+
+  await user.save();
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+export {
+  registerUser,
+  verifyEmail,
+  resendVerificationEmail,
+  sendResetPasswordMail,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  forgotPassword,
+  resetPassword,
+  changeCurrentPassword,
+  getCurrentUser,
+  updateAccountDetails,
+};
