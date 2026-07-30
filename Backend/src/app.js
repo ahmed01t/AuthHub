@@ -4,7 +4,8 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";    
 import ratelimit from "express-rate-limit";
 import authRouter from "./routes/auth.routes.js";
-
+import errorHandler from "./middlewares/error.middleware.js";
+//AUTH ROUTER IS AN EXPRESS ROUTER OBJEXT AND IT CONTAIN ALL THE ROUTES RELATED TO AUTHENTICATION AND AUTHORIZATION, SUCH AS REGISTER, LOGIN, LOGOUT, REFRESH TOKEN, FORGOT PASSWORD, RESET PASSWORD, ETC. IT IS IMPORTED FROM THE auth.routes.js FILE AND USED IN THE APP TO HANDLE REQUESTS TO THE /api/v1/auth ENDPOINT.
 const app = express();
 
 app.use(cors(
@@ -35,5 +36,7 @@ app.use("/api/v1/auth", authRouter);
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "success", message: "API is healthy" });
 })
+
+app.use(errorHandler);
 
 export default app;
