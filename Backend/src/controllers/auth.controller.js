@@ -9,6 +9,28 @@ import ApiResponse from "../utils/ApiResponse";
 const createHash = (value) => { 
     crypto.createHash("sha256").update(value).digest("hex");
 }
+// values in cookieOptions are set to enhance security and control the behavior of cookies in a web application. Here's what each option means:
+
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
+const getPublicUser = (user) => {
+    return {
+        _id: user._id,
+        fullname: user.fullname,
+        email: user.email,
+        username: user.username,
+        isemailverified: user.isemailverified,
+        role: user.role,
+        avatar: user.avatar
+     
+    };
+};
+
 const generateAccessAndRefreshTokens = async (userId) => {
     const user= await User.findById(userId);
     if(!user){
@@ -121,7 +143,133 @@ const verifyEmail = asyncHandler(async (req, res) => {
     user.emailverificationtokenexpires = undefined;
     await user.save({ validateBeforeSave: false });
 
-    const tokens = await generateAccessAndRefreshTokens(user._id);
-    return res.status(200).json(new ApiResponse(200,"Email verified successfully", { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }));
+    const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id);
+
+ const verifiedUser = await User.findById(user._id);
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, cookieOptions)
+    .cookie("refreshToken", refreshToken, cookieOptions)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: getPublicUser(verifiedUser),
+          accessToken,
+          refreshToken,
+        },
+        "Email verified successfully"
+      )
+    );
+})
+
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    if(!email){
+        throw new ApiError(400,"Email is required");
+    }
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+    if(user.isemailverified){
+        throw new ApiError(400,"Email is already verified");
+    }
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const hashedVerificationToken = createHash(verificationToken);
+    user.emailverificationtoken = hashedVerificationToken;
+    user.emailverificationtokenexpires = new Date(Date.now() + 3600000);
+    await user.save({ validateBeforeSave: false });
+    await sendVerificationEmail({ email: user.email, fullname: user.fullname, token: verificationToken });
+
+    return res.status(200).json(new ApiResponse(200,"Verification email resent successfully"));
+})
+
+const loginUser = asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    if(!email || !password){
+        throw new ApiError(400,"Email and password are required");
+    }
+const user= await User.findOne({ email: email.toLowerCase().trim() }).select("+password +refreshToken");
+if(!user){
+    throw new ApiError(401,"Invalid email or password");
+}
+if(!user.isemailverified){
+    throw new ApiError(401,"Email is not verified. Please verify your email before logging in.");
+}
+const isPasswordValid = await bcrypt.compare(password, user.password);
+if(!isPasswordValid){
+    throw new ApiError(401,"Invalid email or password");
+}
+
+const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+const loggedInUser = await User.findById(user._id);
+
+return res
+    .status(200)
+    .cookie("accessToken", accessToken, cookieOptions)
+    .cookie("refreshToken", refreshToken, cookieOptions)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user: getPublicUser(loggedInUser),
+                accessToken,
+                refreshToken,
+            },
+            "User logged in successfully"
+        )
+    );
+})
+
+const logoutUser = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+    if (!userId) {
+        throw new ApiError(400, "User not authenticated");
+    }
+    await User.findByIdAndUpdate(userId, { refreshToken: undefined });
+    return res
+        .status(200)
+        .clearCookie("accessToken", cookieOptions)
+        .clearCookie("refreshToken", cookieOptions)
+        .json(new ApiResponse(200, "User logged out successfully"));
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+   const incomingRefreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+   if (!incomingRefreshToken) {
+        throw new ApiError(400, "Refresh token is required");
+    }
+    let decodedtoken;
+    try {
+        decodedtoken = jwt.verify(incomingRefreshToken, process.env.JWT_REFRESH_TOKEN_SECRET);
+    } catch (error) {  
+        throw new ApiError(401, "Invalid or expired refresh token"); 
+    }
+    const user=await User.findById(decodedtoken._id).select("+refreshToken +password");
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+    if (user.refreshToken !== incomingRefreshToken) {
+        throw new ApiError(401, "Refresh token does not match");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id);
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, cookieOptions)
+        .cookie("refreshToken", refreshToken, cookieOptions)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    accessToken,
+                    refreshToken},
+                "Access token refreshed successfully"
+            )
+        );
 
 })
