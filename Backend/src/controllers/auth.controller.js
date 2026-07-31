@@ -1,10 +1,11 @@
-import asyncHandler from "../utils/asyncHandler.js";
+import asyncHandler from "../utils/asynchandler.js";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import crypto, { createHash } from "crypto";
+import crypto from "crypto";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
+import sendEmail from "../utils/sendEmail.js";
 
 const generateHash = (value) => { 
     return crypto.createHash("sha256").update(value).digest("hex");
@@ -36,11 +37,11 @@ const generateAccessAndRefreshTokens = async (userId) => {
         throw new ApiError(404,"User not found");
     }
     const accessToken = jwt.sign({ id: user._id, email: user.email , username: user.username ,role: user.role}, process.env.JWT_ACCESS_TOKEN_SECRET, {
-        expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || "20m",
+        expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || process.env.ACCESS_TOKEN_EXPIRY || "20m",
     });
 
     const refreshToken = jwt.sign({ id: user._id, email: user.email , username: user.username ,role: user.role}, process.env.JWT_REFRESH_TOKEN_SECRET, {
-        expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRES_IN || "7d",
+        expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRES_IN || process.env.REFRESH_TOKEN_EXPIRY || "7d",
     });
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
@@ -116,7 +117,7 @@ const normalizedUsername = username.toLowerCase().trim();
     });
     await sendVerificationEmail({ email: user.email, fullname: user.fullname, token: verificationToken });
 
-return res.status(201).json(new ApiResponse(201, "User registered successfully. Please check your email to verify your account.", { userId: user._id }));
+return res.status(201).json(new ApiResponse(201, { userId: user._id }, "User registered successfully. Please check your email to verify your account."));
 })
 
 const verifyEmail = asyncHandler(async (req, res) => {
@@ -183,7 +184,7 @@ const resendVerificationEmail = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
     await sendVerificationEmail({ email: user.email, fullname: user.fullname, token: verificationToken });
 
-    return res.status(200).json(new ApiResponse(200,"Verification email resent successfully"));
+    return res.status(200).json(new ApiResponse(200, {}, "Verification email resent successfully"));
 })
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -224,7 +225,7 @@ return res
 })
 
 const logoutUser = asyncHandler(async (req, res) => {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) {
         throw new ApiError(400, "User not authenticated");
     }
@@ -233,7 +234,7 @@ const logoutUser = asyncHandler(async (req, res) => {
         .status(200)
         .clearCookie("accessToken", cookieOptions)
         .clearCookie("refreshToken", cookieOptions)
-        .json(new ApiResponse(200, "User logged out successfully"));
+        .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
@@ -247,7 +248,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     } catch (error) {  
         throw new ApiError(401, "Invalid or expired refresh token"); 
     }
-    const user=await User.findById(decodedtoken._id).select("+refreshToken +password");
+    const user=await User.findById(decodedtoken.id).select("+refreshToken +password");
     if(!user){
         throw new ApiError(404,"User not found");
     }
@@ -364,6 +365,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   const user = await User.findOne({
     email: normalizedEmail,
     passwordResetToken: tokenHash,
+    // $gt means "greater than" in MongoDB queries. In this context, it is used to check if the password reset token has not expired. The query is looking for a user document where the passwordResetExpiresAt field is greater than the current date and time (new Date()). This ensures that the token is still valid and has not passed its expiration time.    
     passwordResetExpiresAt: { $gt: new Date() },
   }).select("+password +refreshToken");
 
@@ -387,7 +389,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user?._id);
+  const user = await User.findById(req.user?.id);
 
   if (!user) {
     throw new ApiError(404, "User not found");
@@ -405,7 +407,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Nothing to update");
   }
 
-  const user = await User.findById(req.user?._id);
+  const user = await User.findById(req.user?.id);
 
   if (!user) {
     throw new ApiError(404, "User not found");
@@ -446,7 +448,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Current password and new password are required");
   }
 
-  const user = await User.findById(req.user?._id).select(
+  const user = await User.findById(req.user?.id).select(
     "+password +refreshToken"
   );
 
@@ -485,4 +487,4 @@ export {
   changeCurrentPassword,
   getCurrentUser,
   updateAccountDetails,
-}; 
+};

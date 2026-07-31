@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import asyncHandler from "../utils/asyncHandler.js";
+import asyncHandler from "../utils/asynchandler.js";
 import ApiError from "../utils/ApiError.js";
 
 const verifyJWT = asyncHandler(async (req, _, next) => {
@@ -12,8 +12,8 @@ const verifyJWT = asyncHandler(async (req, _, next) => {
   }
 
   try {
-    const decodedToken = jwt.verify(token, process.env.JWT_ACCESSTOKEN_SECRET);
-    // Attach the decoded token to the request object for further use
+    const decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
+    // Attach the decoded token to the request object for further use for controllers or other middlewares
     req.user = decodedToken;
     next();
   } catch (error) {
