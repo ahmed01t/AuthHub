@@ -1,16 +1,15 @@
-import asyncHandler from "../utils/asynchandler";
-import User from "../models/user.model";
+import asyncHandler from "../utils/asyncHandler.js";
+import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto, { createHash } from "crypto";
-import ApiError from "../utils/ApiError";
-import ApiResponse from "../utils/ApiResponse";
+import ApiError from "../utils/ApiError.js";
+import ApiResponse from "../utils/ApiResponse.js";
 
-const createHash = (value) => { 
-    crypto.createHash("sha256").update(value).digest("hex");
+const generateHash = (value) => { 
+    return crypto.createHash("sha256").update(value).digest("hex");
 }
 // values in cookieOptions are set to enhance security and control the behavior of cookies in a web application. Here's what each option means:
-
 const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -102,7 +101,7 @@ const normalizedUsername = username.toLowerCase().trim();
     }
 // Generate a verification token for email verification
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const hashedVerificationToken = createHash(verificationToken);
+    const hashedVerificationToken = generateHash(verificationToken);
 
     
     const user = await User.create({
@@ -127,7 +126,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const hashedToken = createHash(token);
+    const hashedToken = generateHash(token);
 
     const user= await User.findOne({
         email: normalizedEmail,
@@ -178,7 +177,7 @@ const resendVerificationEmail = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Email is already verified");
     }
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const hashedVerificationToken = createHash(verificationToken);
+    const hashedVerificationToken = generateHash(verificationToken);
     user.emailverificationtoken = hashedVerificationToken;
     user.emailverificationtokenexpires = new Date(Date.now() + 3600000);
     await user.save({ validateBeforeSave: false });
@@ -327,7 +326,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   }
 
   const resetToken = crypto.randomBytes(32).toString("hex");
-  const resetTokenHash = createHash(resetToken);
+  const resetTokenHash = generateHash(resetToken);
 
   user.passwordResetToken = resetTokenHash;
   user.passwordResetExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -360,7 +359,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const tokenHash = createHash(token);
+  const tokenHash = generateHash(token);
 
   const user = await User.findOne({
     email: normalizedEmail,
@@ -486,4 +485,4 @@ export {
   changeCurrentPassword,
   getCurrentUser,
   updateAccountDetails,
-};
+}; 

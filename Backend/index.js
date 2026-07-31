@@ -2,7 +2,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import connectdb from "./src/config/db.js";
-import { app } from "./app.js";
+import app from "./app.js";
 dotenv.config({
     path:'./.env'
 }
@@ -20,5 +20,5 @@ app.listen(PORT, () => {
 })
    
 app.get("/test", (req, res) => {
-  res.send("Server is working");
+  res.send("Server is working fine");
 })

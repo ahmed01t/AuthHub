@@ -1,4 +1,3 @@
-import React from "react";
 
 const asyncHandler = (requestHandler) => {
   return (req, res, next) => {

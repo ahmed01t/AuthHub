@@ -1,11 +1,10 @@
 import express from "express";
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/verifyJWT.js";
+import verifyJWT from "../middlewares/auth.middleware.js";
 // importing all these functions from auth.controller.js file
 import {
   verifyEmail,
   registerUser,
-  verifyEmail,
   resendVerificationEmail,
   sendResetPasswordMail,
   loginUser,
