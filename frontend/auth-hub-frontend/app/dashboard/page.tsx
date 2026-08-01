@@ -28,6 +28,7 @@ import {
 type UserData = {
   id: string;
   name: string;
+  username: string;
   email: string;
   phone?: string;
   avatar?: string;
@@ -66,6 +67,7 @@ export default function DashboardPage() {
         setUser({
           id: data.data._id,
           name: data.data.fullname,
+          username: data.data.username,
           email: data.data.email,
           avatar: data.data.avatar,
           role: data.data.role,
@@ -369,9 +371,8 @@ function UserDetailsView({ user }: { user: UserData | null }) {
 
 function UpdateAccountView({ user, onUpdate }: { user: UserData | null; onUpdate: () => void }) {
   const [formData, setFormData] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
-    phone: user?.phone || "",
+    fullname: user?.name || "",
+    username: user?.username || "",
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -382,9 +383,9 @@ function UpdateAccountView({ user, onUpdate }: { user: UserData | null; onUpdate
     setMessage(null);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/update-profile`,
+        `${apiBaseUrl}/auth/update`,
         {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(formData),
@@ -427,8 +428,8 @@ function UpdateAccountView({ user, onUpdate }: { user: UserData | null; onUpdate
             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={formData.fullname}
+              onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               required
             />
@@ -436,29 +437,15 @@ function UpdateAccountView({ user, onUpdate }: { user: UserData | null; onUpdate
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email Address</label>
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Username</label>
           <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               required
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Phone Number</label>
-          <div className="relative">
-            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              placeholder="+1 (555) 000-0000"
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
         </div>
@@ -472,6 +459,46 @@ function UpdateAccountView({ user, onUpdate }: { user: UserData | null; onUpdate
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  show,
+  toggle,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  show: boolean;
+  toggle: () => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</label>
+      <div className="relative">
+        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="w-full pl-12 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+          required
+        />
+        <button
+          type="button"
+          onClick={toggle}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -506,9 +533,9 @@ function ChangePasswordView() {
     setSaving(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/change-password`,
+        `${apiBaseUrl}/auth/change-password`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
@@ -527,44 +554,6 @@ function ChangePasswordView() {
       setSaving(false);
     }
   };
-
-  const PasswordInput = ({
-    label,
-    value,
-    onChange,
-    show,
-    toggle,
-    placeholder,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    show: boolean;
-    toggle: () => void;
-    placeholder: string;
-  }) => (
-    <div className="space-y-2">
-      <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</label>
-      <div className="relative">
-        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full pl-12 pr-12 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-          required
-        />
-        <button
-          type="button"
-          onClick={toggle}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-        >
-          {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-300 max-w-2xl">
