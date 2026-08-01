@@ -37,7 +37,7 @@ app.use(limiter);
 
 app.use("/api/v1/auth", authRouter);
 
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "success", message: "API is healthy" });
 })
 
