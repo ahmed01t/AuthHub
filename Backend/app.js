@@ -37,6 +37,14 @@ app.use(limiter);
 
 app.use("/api/v1/auth", authRouter);
 
+app.get("/", (req, res) => {
+    res.status(200).json({
+        status: "success",
+        message: "AuthHub API is running",
+        health: "/api/health",
+    });
+});
+
 app.get("/api/health", (req, res) => {
     res.status(200).json({ status: "success", message: "API is healthy" });
 })
