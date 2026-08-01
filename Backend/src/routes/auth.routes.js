@@ -31,7 +31,7 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.patch("/change-password", verifyJWT, changeCurrentPassword);
 router.get("/me", verifyJWT, getCurrentUser);
-router.patch("/me", verifyJWT, updateAccountDetails);
+router.patch("/update", verifyJWT, updateAccountDetails);
 
 
 export default router;

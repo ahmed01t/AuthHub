@@ -26,7 +26,8 @@ const getPublicUser = (user) => {
         username: user.username,
         isemailverified: user.isemailverified,
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        createdAt: user.createdAt,
      
     };
 };
