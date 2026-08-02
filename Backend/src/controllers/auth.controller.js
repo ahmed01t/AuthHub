@@ -13,8 +13,8 @@ const generateHash = (value) => {
 // values in cookieOptions are set to enhance security and control the behavior of cookies in a web application. Here's what each option means:
 const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: true,// This ensures that the cookie is only sent over HTTPS, enhancing security by preventing it from being transmitted over unencrypted connections.
+    sameSite: "none", // This allows the cookie to be sent in cross-site requests, which is necessary for some authentication flows, especially when the frontend and backend are on different domains.
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
